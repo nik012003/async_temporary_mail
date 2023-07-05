@@ -2,15 +2,16 @@ use chrono::NaiveDateTime;
 use rand::seq::SliceRandom;
 use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Deserializer};
+use std::error::Error;
 use std::fmt;
 
-const API_URL: &'static str = "https://www.1secmail.com/api/v1/";
+const API_URL: &str = "https://www.1secmail.com/api/v1/";
 
 #[derive(Debug)]
 
 pub struct TempEmail {
     email_adress: EmailAddr,
-    client: reqwest::blocking::Client,
+    client: reqwest::Client,
 }
 
 impl TempEmail {
@@ -21,15 +22,19 @@ impl TempEmail {
     /// ```
     /// let temp_mail = temporary_mail::TempEmail::new();
     /// ```
-    pub fn new() -> TempEmail {
-        let domain = ["1secmail.com", "1secmail.net", "1secmail.org"]
-            .choose(&mut rand::thread_rng())
-            .unwrap();
-        let mail = EmailAddr {
-            user: TempEmail::random_username(),
-            domain: domain.to_string(),
-        };
-        let client = reqwest::blocking::Client::new();
+    pub fn new() -> Self {
+        let mail = EmailAddr::new();
+        Self::from_email_addr(mail)
+    }
+    /// Creates a temporary email from a given EmailAddr
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let temp_mail = temporary_mail::TempEmail::new();
+    /// ```
+    pub fn from_email_addr(mail: EmailAddr) -> Self {
+        let client = reqwest::Client::new();
 
         TempEmail {
             email_adress: mail,
@@ -51,13 +56,13 @@ impl TempEmail {
     /// Return a vector of received Emails
     ///
     /// # Example
-    /// ```
+    /// ```ignore
     /// let temp_mail = temporary_mail::TempEmail::new();
-    /// if let Some(mails) = temp_mail.get_inbox() {
+    /// if let Ok(mails) = temp_mail.get_inbox().await {
     ///     mails.iter().for_each(|mail| println!("{:?}", mail));
     /// }
     /// ```
-    pub fn get_inbox(&self) -> Option<Vec<Email>> {
+    pub async fn get_inbox(&self) -> Result<Vec<Email>, Box<dyn Error + Send + Sync>> {
         let res: serde_json::Value = self
             .client
             .get(API_URL)
@@ -67,20 +72,17 @@ impl TempEmail {
                 ("domain", &self.email_adress.domain),
             ])
             .send()
-            .unwrap()
+            .await?
             .json()
-            .unwrap();
+            .await?;
 
         let ids = res
             .as_array()
-            .unwrap()
+            .ok_or("Can't convert to array")?
             .iter()
-            .map(|e| e.get("id").unwrap().as_i64().unwrap())
+            .filter_map(|e| e.get("id"))
+            .filter_map(|i| i.as_i64())
             .collect::<Vec<_>>();
-
-        if ids.is_empty() {
-            return None;
-        }
 
         let mut inbox = Vec::new();
 
@@ -95,22 +97,14 @@ impl TempEmail {
                     ("id", &id.to_string()),
                 ])
                 .send()
-                .unwrap()
+                .await?
                 .json()
-                .unwrap();
+                .await?;
 
             inbox.push(email);
         }
 
-        Some(inbox)
-    }
-
-    fn random_username() -> String {
-        rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(7)
-            .map(char::from)
-            .collect()
+        Ok(inbox)
     }
 }
 
@@ -118,6 +112,23 @@ impl TempEmail {
 pub struct EmailAddr {
     user: String,
     domain: String,
+}
+
+impl EmailAddr {
+    fn new() -> Self {
+        let user = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(7)
+            .map(char::from)
+            .collect();
+
+        let domain = ["1secmail.com", "1secmail.net", "1secmail.org"]
+            .choose(&mut rand::thread_rng())
+            .unwrap()
+            .to_string();
+
+        EmailAddr { user, domain }
+    }
 }
 
 impl fmt::Display for EmailAddr {
