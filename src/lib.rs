@@ -31,7 +31,8 @@ impl TempEmail {
     /// # Example
     ///
     /// ```
-    /// let temp_mail = temporary_mail::TempEmail::new();
+    /// let email_addr = temporary_mail::EmailAddr::from_user_domain("test", "1secmail.com");
+    /// let temp_mail = temporary_mail::TempEmail::from_email_addr(email_addr);
     /// ```
     pub fn from_email_addr(mail: EmailAddr) -> Self {
         let client = reqwest::Client::new();
@@ -110,8 +111,8 @@ impl TempEmail {
 
 #[derive(Debug, Clone)]
 pub struct EmailAddr {
-    user: String,
-    domain: String,
+    pub user: String,
+    pub domain: String,
 }
 
 impl EmailAddr {
@@ -127,6 +128,10 @@ impl EmailAddr {
             .unwrap()
             .to_string();
 
+        EmailAddr { user, domain }
+    }
+
+    pub fn from_user_domain(user: String, domain: String) -> Self {
         EmailAddr { user, domain }
     }
 }

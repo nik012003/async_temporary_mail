@@ -1,6 +1,6 @@
 [package]
 name = "async_temporary_mail"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Nicola Guerrera <guerrera.nicola@gmail.com>"]
 description= "Rust wrapper of 1secmail temporary mail service"
